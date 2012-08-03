@@ -1,6 +1,10 @@
 # Class: puppet
 #
-
+# Usage:
+#   class { 'puppet':
+#     agent => false,
+#     master => true,
+#   }
 class puppet (
   $version = 'present',
   $agent = 'active',
@@ -12,6 +16,35 @@ class puppet (
   anchor { 'puppet::begin': }
   anchor { 'puppet::end': }
 
+  class { 'augeas':; }
+
+  # workaround for prerequisites
+  package { 'facter':; }
+  case $::operatingsystem {
+    /(?i-mx:debian|ubuntu)/: {
+      package {
+        'pciutils':
+          before => Package['facter'];
+        'puppet-common':
+          require => $::puppetversion ? {
+            # workaround for old debian package (< 2.7)
+            /^2.6/ => Class['augeas'],
+            default => Package['facter'],
+          },
+          before => Anchor['puppet::end'];
+      }
+    }
+    /(?i-mx:redhat|centos)/: {
+      $pciutils_pkg = $::lsbmajdistrelease ? {
+        '5' => 'pciutils',
+        '6' => 'pciutils-libs',
+      }
+      package {
+        "$pciutils_pkg":
+          before => Package['facter'];
+      }
+    }
+  }
 
   if $agent {
     class { 'puppet::agent':
@@ -20,8 +53,10 @@ class puppet (
         'active' => true,
         default => false,
       },
+      init_config => $agent_init_config,
     }
   }
+
   if $master {
     class { 'puppet::master':
       version => $version,
@@ -29,13 +64,45 @@ class puppet (
         'active' => true,
         default => false,
       },
+      init_config => $master_init_config,
     }
   }
 }
 
-define puppet::config ( $content ) {
-  file { "$name":
-    mode => 644, owner => root, group => 0,
-    content => $content,
+define puppet::config (
+  $changes,
+  $section = 'main',
+  $onlyif = false
+  ) {
+
+  if ! ($section in [ 'main', 'master', 'agent' ]) {
+    fail("section parameter must be main/master/agent")
+  }
+
+  case $onlyif {
+    false: {
+      augeas { "/etc/puppet/puppet.conf-${section}-${name}":
+        context => "/files/etc/puppet/puppet.conf/${section}/",
+        changes => $changes,
+        require => $::operatingsystem ? {
+          /(?i-mx:debian|ubuntu)/ => Package['puppet-common'],
+          /(?i-mx:redhat|centos)/ => Package['puppet'],
+        },
+      }
+    }
+    default: {
+      augeas { "/etc/puppet/puppet.conf-${section}-${name}":
+        context => "/files/etc/puppet/puppet.conf/${section}/",
+        changes => $changes,
+        onlyif => $onlyif,
+        require => Package['puppet-common'],
+      }
+    }
   }
 }
+
+# concat { '/etc/puppet/auth.conf':
+#   require => Package['puppet-common'],
+# }
+# define puppet::config::auth () {
+# }

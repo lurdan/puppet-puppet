@@ -5,7 +5,8 @@
 #
 class puppet::master (
   $version = 'present',
-  $active = true
+  $active = true,
+  $init_config = false
   ) {
 
   anchor { 'puppet::master::begin': }
@@ -21,9 +22,9 @@ class puppet::master (
     require => [ Anchor['puppet::master::begin'], Package['puppet-agent'] ],
   }
 
-  if $puppet::master_init_config {
+  if $init_config {
     sysvinit::init::config { "$puppet_master":
-      changes => $puppet::master_init_config,
+      changes => $init_config,
     }
   }
 
@@ -34,10 +35,21 @@ class puppet::master (
       default => stopped,
     },
     enable => $active,
-#    pattern => ,
     require => Package['puppet-master'],
     before => Anchor['puppet::master::end'],
   }
   Puppet::Config <| |> -> Service['puppet-master']
 
+}
+
+define puppet::master::config (
+  $changes,
+  $onlyif = false
+  ) {
+  puppet::config { "${name}":
+    section => 'master',
+    changes => $changes,
+    onlyif => $onlyif,
+    require => Package['puppet-master'],
+  }
 }
