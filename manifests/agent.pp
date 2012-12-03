@@ -35,6 +35,8 @@ class puppet::agent (
       default => stopped,
     },
     enable => $active,
+    hasstatus => true,
+    pattern => '/puppet agent',
     require => Package['puppet-agent'],
     before => Anchor['puppet::agent::end'],
   }

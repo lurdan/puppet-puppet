@@ -35,6 +35,9 @@ class puppet::master (
       default => stopped,
     },
     enable => $active,
+    # TODO: properly detect passenger service.
+    hasstatus => $active,
+    pattern => '/puppet master',
     require => Package['puppet-master'],
     before => Anchor['puppet::master::end'],
   }
