@@ -6,7 +6,7 @@
 #     master => true,
 #   }
 class puppet (
-  $version = 'present',
+  $version = 'latest',
   $agent = 'active',
   $agent_init_config = false,
   $master = false,
@@ -26,6 +26,7 @@ class puppet (
         'pciutils':
           before => Package['facter'];
         'puppet-common':
+          ensure => $version,
           require => $::puppetversion ? {
             # workaround for old debian package (< 2.7)
             /^2.6/ => Class['augeas'],
